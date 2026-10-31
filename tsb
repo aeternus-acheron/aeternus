@@ -1,0 +1,655 @@
+-- JJS | LOCK-ON SUITE (FIXED CAMERA VERSION)
+-- Place in StarterPlayerScripts or StarterGui in Roblox Studio.
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local Camera = Workspace.CurrentCamera
+local GUI_NAME = "JJSLockOnSuite"
+local DISCORD = "https://discord.gg/4SNbZEBeE"
+
+local old = PlayerGui:FindFirstChild(GUI_NAME)
+if old then old:Destroy() end
+
+local Settings = {
+    LockOn = false,
+    Players = true,
+    NPCs = true,
+    LineOfSight = false,
+    ShowFOV = true,
+    ShowMarker = true,
+    FOV = 180,
+    Strength = 12,
+    ColorIndex = 1,
+}
+
+local Palette = {
+    {name = "CYAN", color = Color3.fromRGB(74, 224, 255)},
+    {name = "VIOLET", color = Color3.fromRGB(177, 112, 255)},
+    {name = "LIME", color = Color3.fromRGB(154, 255, 111)},
+    {name = "AMBER", color = Color3.fromRGB(255, 190, 85)},
+    {name = "ROSE", color = Color3.fromRGB(255, 105, 145)},
+}
+local function accent() return Palette[Settings.ColorIndex].color end
+
+local BG = Color3.fromRGB(15, 18, 26)
+local PANEL = Color3.fromRGB(23, 27, 38)
+local PANEL2 = Color3.fromRGB(31, 36, 49)
+local MUTED = Color3.fromRGB(151, 162, 182)
+local WHITE = Color3.fromRGB(240, 245, 255)
+
+local function make(className, props, parent)
+    local obj = Instance.new(className)
+    for k, v in pairs(props) do obj[k] = v end
+    obj.Parent = parent
+    return obj
+end
+local function round(parent, radius)
+    make("UICorner", {CornerRadius = UDim.new(0, radius)}, parent)
+end
+local function outline(parent, color, thickness, transparency)
+    return make("UIStroke", {Color = color, Thickness = thickness or 1, Transparency = transparency or 0}, parent)
+end
+
+local GUI = make("ScreenGui", {
+    Name = GUI_NAME, ResetOnSpawn = false, IgnoreGuiInset = true,
+    DisplayOrder = 60, ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+}, PlayerGui)
+
+local Main = make("Frame", {
+    Name = "Main", Size = UDim2.fromOffset(320, 500),
+    Position = UDim2.new(0, 24, 0.5, -250),
+    BackgroundColor3 = BG, BorderSizePixel = 0, Active = true,
+}, GUI)
+round(Main, 16)
+outline(Main, Color3.fromRGB(65, 78, 101), 1, 0.2)
+
+local Top = make("Frame", {
+    Name = "TopBar", Size = UDim2.new(1, 0, 0, 82),
+    BackgroundColor3 = PANEL, BorderSizePixel = 0, Active = true,
+}, Main)
+round(Top, 16)
+make("Frame", {Position = UDim2.new(0, 0, 1, -16), Size = UDim2.new(1, 0, 0, 16), BackgroundColor3 = PANEL, BorderSizePixel = 0}, Top)
+local AccentBar = make("Frame", {Position = UDim2.fromOffset(16, 17), Size = UDim2.fromOffset(4, 43), BackgroundColor3 = accent(), BorderSizePixel = 0}, Top)
+round(AccentBar, 4)
+make("TextLabel", {Position = UDim2.fromOffset(30, 12), Size = UDim2.new(1, -85, 0, 29), BackgroundTransparency = 1, Text = "JJS LOCK-ON", TextColor3 = WHITE, TextSize = 19, Font = Enum.Font.GothamBlack, TextXAlignment = Enum.TextXAlignment.Left}, Top)
+make("TextLabel", {Position = UDim2.fromOffset(31, 42), Size = UDim2.new(1, -85, 0, 18), BackgroundTransparency = 1, Text = "TARGETING SUITE  /  PLAYER + NPC", TextColor3 = MUTED, TextSize = 9, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Left}, Top)
+local Hide = make("TextButton", {Position = UDim2.new(1, -43, 0, 19), Size = UDim2.fromOffset(27, 27), BackgroundColor3 = PANEL2, Text = "—", TextColor3 = WHITE, TextSize = 15, Font = Enum.Font.GothamBold}, Top)
+round(Hide, 8)
+
+local Status = make("TextLabel", {Position = UDim2.fromOffset(18, 91), Size = UDim2.new(1, -36, 0, 20), BackgroundTransparency = 1, Text = "●  LOCK DISABLED  /  READY", TextColor3 = MUTED, TextSize = 10, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Left}, Main)
+local TabBar = make("Frame", {Position = UDim2.fromOffset(14, 119), Size = UDim2.new(1, -28, 0, 34), BackgroundTransparency = 1}, Main)
+make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder}, TabBar)
+local Holder = make("Frame", {Position = UDim2.fromOffset(14, 160), Size = UDim2.new(1, -28, 1, -173), BackgroundTransparency = 1, ClipsDescendants = true}, Main)
+
+local Pages = {}
+local CurrentPage
+local function createPage(name)
+    local page = make("ScrollingFrame", {Name = name, Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, ScrollBarImageColor3 = accent(), CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, Visible = false}, Holder)
+    make("UIListLayout", {Padding = UDim.new(0, 7), SortOrder = Enum.SortOrder.LayoutOrder}, page)
+    Pages[name] = page
+    return page
+end
+for _, name in ipairs({"LOCK", "FILTERS", "STYLE", "KEYS", "DISCORD"}) do createPage(name) end
+
+local function selectPage(name)
+    CurrentPage = Pages[name]
+    for n, page in pairs(Pages) do page.Visible = n == name end
+    for _, b in ipairs(TabBar:GetChildren()) do
+        if b:IsA("TextButton") then
+            local active = b.Name == name
+            b.BackgroundColor3 = active and accent() or PANEL
+            b.TextColor3 = active and BG or MUTED
+        end
+    end
+end
+for i, name in ipairs({"LOCK", "FILTERS", "STYLE", "KEYS", "DISCORD"}) do
+    local b = make("TextButton", {Name = name, Size = UDim2.new(0.2, -4, 1, 0), BackgroundColor3 = PANEL, Text = name, TextColor3 = MUTED, TextSize = 9, Font = Enum.Font.GothamBlack, LayoutOrder = i}, TabBar)
+    round(b, 8)
+    b.Activated:Connect(function() selectPage(name) end)
+end
+
+local function section(page, title)
+    make("TextLabel", {Size = UDim2.new(1, 0, 0, 18), BackgroundTransparency = 1, Text = title, TextColor3 = accent(), TextSize = 10, Font = Enum.Font.GothamBlack, TextXAlignment = Enum.TextXAlignment.Left}, page)
+end
+local ToggleButtons = {}
+local setLockOn
+local function toggle(page, title, key, detail)
+    local row = make("Frame", {Size = UDim2.new(1, 0, 0, 45), BackgroundColor3 = PANEL, BorderSizePixel = 0}, page)
+    round(row, 9)
+    make("TextLabel", {Position = UDim2.fromOffset(11, 5), Size = UDim2.new(1, -78, 0, 18), BackgroundTransparency = 1, Text = title, TextColor3 = WHITE, TextSize = 12, Font = Enum.Font.GothamSemibold, TextXAlignment = Enum.TextXAlignment.Left}, row)
+    make("TextLabel", {Position = UDim2.fromOffset(11, 24), Size = UDim2.new(1, -78, 0, 13), BackgroundTransparency = 1, Text = detail or "Toggle option", TextColor3 = MUTED, TextSize = 9, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left}, row)
+    local b = make("TextButton", {AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -9, 0.5, 0), Size = UDim2.fromOffset(46, 25), BackgroundColor3 = Settings[key] and accent() or PANEL2, Text = Settings[key] and "ON" or "OFF", TextColor3 = Settings[key] and BG or MUTED, TextSize = 9, Font = Enum.Font.GothamBlack}, row)
+    round(b, 7)
+    ToggleButtons[key] = b
+    b.Activated:Connect(function()
+        if key == "LockOn" and setLockOn then
+            setLockOn(not Settings.LockOn)
+        else
+            Settings[key] = not Settings[key]
+            b.Text = Settings[key] and "ON" or "OFF"
+            b.BackgroundColor3 = Settings[key] and accent() or PANEL2
+            b.TextColor3 = Settings[key] and BG or MUTED
+        end
+    end)
+end
+local function cycle(page, title, display, callback)
+    local row = make("Frame", {Size = UDim2.new(1, 0, 0, 39), BackgroundColor3 = PANEL, BorderSizePixel = 0}, page)
+    round(row, 9)
+    make("TextLabel", {Position = UDim2.fromOffset(11, 0), Size = UDim2.new(1, -105, 1, 0), BackgroundTransparency = 1, Text = title, TextColor3 = WHITE, TextSize = 11, Font = Enum.Font.GothamSemibold, TextXAlignment = Enum.TextXAlignment.Left}, row)
+    local b = make("TextButton", {AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -7, 0.5, 0), Size = UDim2.fromOffset(91, 28), BackgroundColor3 = PANEL2, Text = display(), TextColor3 = accent(), TextSize = 10, Font = Enum.Font.GothamBold}, row)
+    round(b, 7)
+    b.Activated:Connect(function() callback(); b.Text = display() end)
+end
+
+local lockPage = Pages.LOCK
+section(lockPage, "LOCK-ON CONTROL")
+toggle(lockPage, "Enable lock-on", "LockOn", "Camera follows the selected target")
+toggle(lockPage, "Show FOV ring", "ShowFOV", "Display the target acquisition radius")
+toggle(lockPage, "Show target marker", "ShowMarker", "Mark the currently selected target")
+
+local SwitchRow = make("Frame", {Size = UDim2.new(1, 0, 0, 39), BackgroundTransparency = 1}, lockPage)
+local PreviousTargetButton = make("TextButton", {
+    Size = UDim2.new(0.5, -4, 1, 0), BackgroundColor3 = PANEL,
+    Text = "‹  PREVIOUS", TextColor3 = WHITE, TextSize = 10, Font = Enum.Font.GothamBlack,
+}, SwitchRow)
+round(PreviousTargetButton, 8)
+local NextTargetButton = make("TextButton", {
+    Position = UDim2.new(0.5, 4, 0, 0), Size = UDim2.new(0.5, -4, 1, 0),
+    BackgroundColor3 = PANEL, Text = "NEXT  ›", TextColor3 = WHITE,
+    TextSize = 10, Font = Enum.Font.GothamBlack,
+}, SwitchRow)
+round(NextTargetButton, 8)
+
+cycle(lockPage, "FOV radius", function() return tostring(Settings.FOV) .. " px" end, function()
+    Settings.FOV = Settings.FOV + 30
+    if Settings.FOV > 360 then Settings.FOV = 90 end
+end)
+
+-- Camera aim strength slider (also supports touch dragging).
+local strengthRow = make("Frame", {
+    Size = UDim2.new(1, 0, 0, 62),
+    BackgroundColor3 = PANEL,
+    BorderSizePixel = 0,
+}, lockPage)
+round(strengthRow, 9)
+
+local strengthTitle = make("TextLabel", {
+    Position = UDim2.fromOffset(11, 6),
+    Size = UDim2.new(1, -80, 0, 18),
+    BackgroundTransparency = 1,
+    Text = "Aim strength",
+    TextColor3 = WHITE,
+    TextSize = 11,
+    Font = Enum.Font.GothamSemibold,
+    TextXAlignment = Enum.TextXAlignment.Left,
+}, strengthRow)
+
+local strengthValue = make("TextLabel", {
+    AnchorPoint = Vector2.new(1, 0),
+    Position = UDim2.new(1, -11, 0, 6),
+    Size = UDim2.fromOffset(54, 18),
+    BackgroundTransparency = 1,
+    Text = tostring(Settings.Strength),
+    TextColor3 = accent(),
+    TextSize = 11,
+    Font = Enum.Font.GothamBold,
+    TextXAlignment = Enum.TextXAlignment.Right,
+}, strengthRow)
+
+local strengthTrack = make("Frame", {
+    Position = UDim2.new(0, 11, 0, 36),
+    Size = UDim2.new(1, -22, 0, 8),
+    BackgroundColor3 = PANEL2,
+    BorderSizePixel = 0,
+    Active = true,
+}, strengthRow)
+round(strengthTrack, 4)
+
+local strengthFill = make("Frame", {
+    Size = UDim2.new((Settings.Strength - 1) / 29, 0, 1, 0),
+    BackgroundColor3 = accent(),
+    BorderSizePixel = 0,
+}, strengthTrack)
+round(strengthFill, 4)
+
+local strengthKnob = make("Frame", {
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.new((Settings.Strength - 1) / 29, 0, 0.5, 0),
+    Size = UDim2.fromOffset(15, 15),
+    BackgroundColor3 = WHITE,
+    BorderSizePixel = 0,
+}, strengthTrack)
+round(strengthKnob, 8)
+outline(strengthKnob, accent(), 2, 0)
+
+local draggingStrength = false
+local strengthInputType
+local function setStrengthFromX(x)
+    local width = math.max(strengthTrack.AbsoluteSize.X, 1)
+    local ratio = math.clamp((x - strengthTrack.AbsolutePosition.X) / width, 0, 1)
+    Settings.Strength = math.clamp(math.floor(1 + ratio * 29 + 0.5), 1, 30)
+    local normalized = (Settings.Strength - 1) / 29
+    strengthFill.Size = UDim2.new(normalized, 0, 1, 0)
+    strengthKnob.Position = UDim2.new(normalized, 0, 0.5, 0)
+    strengthValue.Text = tostring(Settings.Strength)
+end
+
+strengthTrack.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        draggingStrength = true
+        strengthInputType = input.UserInputType
+        setStrengthFromX(input.Position.X)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if not draggingStrength then return end
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+        setStrengthFromX(input.Position.X)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if not draggingStrength then return end
+    if input.UserInputType == strengthInputType
+        or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingStrength = false
+        strengthInputType = nil
+    end
+end)
+
+make("TextLabel", {
+    Size = UDim2.new(1, 0, 0, 30),
+    BackgroundTransparency = 1,
+    Text = "DIRECT TRACKING  /  FLUID CAMERA FIX",
+    TextColor3 = MUTED,
+    TextSize = 10,
+    Font = Enum.Font.GothamBold,
+    TextXAlignment = Enum.TextXAlignment.Left,
+}, lockPage)
+
+local filterPage = Pages.FILTERS
+section(filterPage, "TARGET FILTERS")
+toggle(filterPage, "Target players", "Players", "Include other players in target scan")
+toggle(filterPage, "Target NPCs", "NPCs", "Include humanoid NPCs in Workspace")
+toggle(filterPage, "Require clear sightline", "LineOfSight", "Ignore targets hidden behind parts")
+
+local stylePage = Pages.STYLE
+section(stylePage, "INTERFACE APPEARANCE")
+cycle(stylePage, "Accent color", function() return Palette[Settings.ColorIndex].name end, function()
+    Settings.ColorIndex = Settings.ColorIndex % #Palette + 1
+end)
+make("TextLabel", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Text = "Tip: tap LOCK-ON to enable tracking. Targets are selected by screen distance inside the FOV ring.", TextColor3 = MUTED, TextSize = 10, Font = Enum.Font.Gotham, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left}, stylePage)
+
+local keyPage = Pages.KEYS
+section(keyPage, "CUSTOM KEYBINDS")
+local Keybinds = {
+    ToggleLock = nil,
+    NextTarget = nil,
+    PreviousTarget = nil,
+    ToggleUI = nil,
+}
+local KeybindButtons = {}
+local pendingKeybind
+local function keyName(keyCode)
+    if keyCode == nil then return "UNBOUND" end
+    return keyCode == Enum.KeyCode.RightShift and "R-SHIFT" or keyCode.Name:upper()
+end
+local function keybindRow(title, action, description)
+    local row = make("Frame", {Size = UDim2.new(1, 0, 0, 48), BackgroundColor3 = PANEL, BorderSizePixel = 0}, keyPage)
+    round(row, 9)
+    make("TextLabel", {Position = UDim2.fromOffset(11, 5), Size = UDim2.new(1, -105, 0, 18), BackgroundTransparency = 1, Text = title, TextColor3 = WHITE, TextSize = 11, Font = Enum.Font.GothamSemibold, TextXAlignment = Enum.TextXAlignment.Left}, row)
+    make("TextLabel", {Position = UDim2.fromOffset(11, 25), Size = UDim2.new(1, -105, 0, 13), BackgroundTransparency = 1, Text = description, TextColor3 = MUTED, TextSize = 9, Font = Enum.Font.Gotham, TextXAlignment = Enum.TextXAlignment.Left}, row)
+    local button = make("TextButton", {AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(88, 29), BackgroundColor3 = PANEL2, Text = keyName(Keybinds[action]), TextColor3 = accent(), TextSize = 10, Font = Enum.Font.GothamBlack}, row)
+    round(button, 7)
+    KeybindButtons[action] = button
+    button.Activated:Connect(function()
+        pendingKeybind = action
+        button.Text = "PRESS KEY..."
+        button.TextColor3 = WHITE
+    end)
+end
+keybindRow("Toggle lock-on", "ToggleLock", "No key assigned")
+keybindRow("Next target", "NextTarget", "No key assigned")
+keybindRow("Previous target", "PreviousTarget", "No key assigned")
+keybindRow("Show / hide interface", "ToggleUI", "No key assigned")
+make("TextLabel", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Text = "All keybinds start unassigned. Tap a key button, then press the key you want. On mobile, use the on-screen controls.", TextColor3 = MUTED, TextSize = 10, Font = Enum.Font.Gotham, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left}, keyPage)
+
+local discordPage = Pages.DISCORD
+section(discordPage, "COMMUNITY")
+local card = make("Frame", {Size = UDim2.new(1, 0, 0, 120), BackgroundColor3 = PANEL, BorderSizePixel = 0}, discordPage)
+round(card, 10)
+make("TextLabel", {Position = UDim2.fromOffset(11, 8), Size = UDim2.new(1, -22, 0, 20), BackgroundTransparency = 1, Text = "JOIN THE JJS COMMUNITY", TextColor3 = WHITE, TextSize = 10, Font = Enum.Font.GothamBlack, TextXAlignment = Enum.TextXAlignment.Left}, card)
+local inviteBox = make("TextBox", {Position = UDim2.fromOffset(10, 35), Size = UDim2.new(1, -20, 0, 31), BackgroundColor3 = PANEL2, Text = DISCORD, TextColor3 = accent(), TextSize = 10, Font = Enum.Font.Gotham, ClearTextOnFocus = false, TextEditable = false, TextXAlignment = Enum.TextXAlignment.Center}, card)
+round(inviteBox, 7)
+local copyButton = make("TextButton", {Position = UDim2.fromOffset(10, 76), Size = UDim2.new(1, -20, 0, 31), BackgroundColor3 = accent(), Text = "COPY DISCORD INVITE", TextColor3 = BG, TextSize = 10, Font = Enum.Font.GothamBlack}, card)
+round(copyButton, 7)
+copyButton.Activated:Connect(function()
+    local copied = false
+    if typeof(setclipboard) == "function" then copied = pcall(setclipboard, DISCORD)
+    elseif typeof(toclipboard) == "function" then copied = pcall(toclipboard, DISCORD) end
+    if copied then
+        copyButton.Text = "INVITE COPIED!"
+    else
+        inviteBox:CaptureFocus()
+        inviteBox.CursorPosition = #inviteBox.Text + 1
+        copyButton.Text = "SELECT LINK TO COPY"
+    end
+end)
+
+selectPage("LOCK")
+
+local dragging, dragInput, dragStart, startPos
+Top.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging, dragStart, startPos = true, input.Position, Main.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+    end
+end)
+Top.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input == dragInput then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+local Reopen = make("TextButton", {Position = UDim2.new(0, 18, 0.5, -20), Size = UDim2.fromOffset(132, 40), BackgroundColor3 = PANEL, Text = "OPEN  /  JJS LOCK-ON", TextColor3 = accent(), TextSize = 9, Font = Enum.Font.GothamBlack, Visible = false}, GUI)
+round(Reopen, 10)
+outline(Reopen, accent(), 1, 0.25)
+Hide.Activated:Connect(function() Main.Visible = false; Reopen.Visible = true end)
+Reopen.Activated:Connect(function() Main.Visible = true; Reopen.Visible = false end)
+
+local Ring = make("Frame", {Name = "FOVRing", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(Settings.FOV * 2, Settings.FOV * 2), BackgroundTransparency = 1}, GUI)
+round(Ring, 1000)
+local RingStroke = outline(Ring, accent(), 2, 0.08)
+local Readout = make("TextLabel", {AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.5, Settings.FOV + 14), Size = UDim2.fromOffset(240, 27), BackgroundColor3 = BG, BackgroundTransparency = 0.1, Text = "TARGET  /  NONE", TextColor3 = WHITE, TextSize = 10, Font = Enum.Font.GothamBold}, GUI)
+round(Readout, 8)
+outline(Readout, Color3.fromRGB(65, 78, 101), 1, 0.35)
+local Marker = make("BillboardGui", {Name = "JJSTargetMarker", Size = UDim2.fromOffset(150, 26), StudsOffset = Vector3.new(0, 3.1, 0), AlwaysOnTop = true, Enabled = false}, PlayerGui)
+make("TextLabel", {Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "◆ LOCKED TARGET", TextColor3 = accent(), TextStrokeTransparency = 0.2, TextSize = 11, Font = Enum.Font.GothamBlack}, Marker)
+
+local npcCache = {}
+
+local function registerNPCFromHumanoid(humanoid)
+    if not humanoid or not humanoid:IsA("Humanoid") then return end
+    local model = humanoid.Parent
+    if model and model:IsA("Model") and not Players:GetPlayerFromCharacter(model)
+        and model ~= LocalPlayer.Character
+        and model:GetAttribute("LockOnTargetable") ~= false then
+        npcCache[model] = true
+    end
+end
+
+for _, obj in ipairs(Workspace:GetDescendants()) do
+    if obj:IsA("Humanoid") then registerNPCFromHumanoid(obj) end
+end
+
+Workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("Humanoid") then registerNPCFromHumanoid(obj) end
+end)
+
+Workspace.DescendantRemoving:Connect(function(obj)
+    if obj:IsA("Humanoid") then
+        local model = obj.Parent
+        if model then npcCache[model] = nil end
+    end
+end)
+
+local currentTarget
+local acquireClock = 0
+local sightClock = 0
+local cachedTargets = {}
+
+local function getAimPart(model)
+    if not model then return nil end
+    return model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("UpperTorso")
+        or model:FindFirstChild("Head")
+end
+
+local function isAliveModel(model)
+    if not model or not model.Parent then return false end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    return hum ~= nil and hum.Health > 0 and getAimPart(model) ~= nil
+end
+
+local function isAllowedTarget(model)
+    if not isAliveModel(model) or model == LocalPlayer.Character then return false end
+    local player = Players:GetPlayerFromCharacter(model)
+    if player then return Settings.Players end
+    return Settings.NPCs and model:GetAttribute("LockOnTargetable") ~= false
+end
+
+local function visibleToCamera(model, part)
+    if not Settings.LineOfSight then return true end
+    Camera = Workspace.CurrentCamera
+    if not Camera then return false end
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+    local result = Workspace:Raycast(Camera.CFrame.Position, part.Position - Camera.CFrame.Position, params)
+    return result == nil or result.Instance:IsDescendantOf(model)
+end
+
+local function collectTargets()
+    local list, seen = {}, {}
+    if Settings.Players then
+        for _, player in ipairs(Players:GetPlayers()) do
+            local character = player.Character
+            if player ~= LocalPlayer and character and isAliveModel(character) then
+                seen[character] = true
+                table.insert(list, character)
+            end
+        end
+    end
+    if Settings.NPCs then
+        for model in pairs(npcCache) do
+            if model.Parent and not seen[model] and isAliveModel(model)
+                and model ~= LocalPlayer.Character
+                and model:GetAttribute("LockOnTargetable") ~= false then
+                seen[model] = true
+                table.insert(list, model)
+            elseif not model.Parent then
+                npcCache[model] = nil
+            end
+        end
+    end
+    return list
+end
+
+local function clearTarget(message)
+    currentTarget = nil
+    Marker.Adornee = nil
+    Marker.Enabled = false
+    Readout.Text = message or (Settings.LockOn and "TARGET  /  SEARCHING" or "TARGET  /  LOCK DISABLED")
+end
+
+local function getScreenDistance(model, center)
+    if not isAllowedTarget(model) then return nil end
+    local part = getAimPart(model)
+    if not part then return nil end
+    local point, onScreen = Camera:WorldToViewportPoint(part.Position)
+    if not onScreen or point.Z <= 0 then return nil end
+    local distance = (Vector2.new(point.X, point.Y) - center).Magnitude
+    if distance > Settings.FOV or not visibleToCamera(model, part) then return nil end
+    return distance, part
+end
+
+local function findBestTarget(center, exclude)
+    local bestModel, bestDistance = nil, Settings.FOV
+    for _, model in ipairs(cachedTargets) do
+        if model ~= exclude then
+            local distance = getScreenDistance(model, center)
+            if distance and distance < bestDistance then
+                bestModel, bestDistance = model, distance
+            end
+        end
+    end
+    return bestModel
+end
+
+local function switchTarget(direction)
+    Camera = Workspace.CurrentCamera
+    if not Camera then return end
+    cachedTargets = collectTargets()
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local candidates = {}
+    for _, model in ipairs(cachedTargets) do
+        local distance = getScreenDistance(model, center)
+        if distance then table.insert(candidates, {model = model, distance = distance}) end
+    end
+    table.sort(candidates, function(a, b) return a.distance < b.distance end)
+    if #candidates == 0 then
+        clearTarget("TARGET  /  NO VALID TARGETS")
+        return
+    end
+
+    local currentIndex
+    for i, entry in ipairs(candidates) do
+        if entry.model == currentTarget then currentIndex = i break end
+    end
+    local nextIndex
+    if currentIndex then
+        nextIndex = ((currentIndex - 1 + direction) % #candidates) + 1
+    else
+        nextIndex = direction >= 0 and 1 or #candidates
+    end
+    currentTarget = candidates[nextIndex].model
+end
+
+NextTargetButton.Activated:Connect(function() switchTarget(1) end)
+PreviousTargetButton.Activated:Connect(function() switchTarget(-1) end)
+
+setLockOn = function(value)
+    if Settings.LockOn == value then return end
+    Settings.LockOn = value
+    local button = ToggleButtons.LockOn
+    if button then
+        button.Text = value and "ON" or "OFF"
+        button.BackgroundColor3 = value and accent() or PANEL2
+        button.TextColor3 = value and BG or MUTED
+    end
+    if not value then
+        clearTarget("TARGET  /  LOCK DISABLED")
+    end
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+    if pendingKeybind then
+        local action = pendingKeybind
+        pendingKeybind = nil
+        if input.KeyCode == Enum.KeyCode.Escape then
+            KeybindButtons[action].Text = keyName(Keybinds[action])
+            KeybindButtons[action].TextColor3 = accent()
+            return
+        end
+        if input.KeyCode ~= Enum.KeyCode.Unknown then Keybinds[action] = input.KeyCode end
+        KeybindButtons[action].Text = keyName(Keybinds[action])
+        KeybindButtons[action].TextColor3 = accent()
+        return
+    end
+    if gameProcessed or UserInputService:GetFocusedTextBox() then return end
+    if input.KeyCode == Keybinds.ToggleLock then
+        setLockOn(not Settings.LockOn)
+    elseif input.KeyCode == Keybinds.NextTarget then
+        switchTarget(1)
+    elseif input.KeyCode == Keybinds.PreviousTarget then
+        switchTarget(-1)
+    elseif input.KeyCode == Keybinds.ToggleUI then
+        Main.Visible = not Main.Visible
+        Reopen.Visible = not Main.Visible
+    end
+end)
+
+RunService:UnbindFromRenderStep("JJSLockOnCamera")
+RunService:BindToRenderStep("JJSLockOnCamera", Enum.RenderPriority.Camera.Value + 2, function(dt)
+    Camera = Workspace.CurrentCamera
+    if not Camera then return end
+
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    Ring.Position = UDim2.fromOffset(center.X, center.Y)
+    Ring.Size = UDim2.fromOffset(Settings.FOV * 2, Settings.FOV * 2)
+    Ring.Visible = Settings.ShowFOV
+    RingStroke.Color = accent()
+    Readout.Position = UDim2.fromOffset(center.X, center.Y + Settings.FOV + 14)
+    Readout.Visible = Settings.ShowMarker
+    Readout.TextColor3 = accent()
+    Marker.Enabled = false
+
+    Status.Text = Settings.LockOn and "●  LOCK ACTIVE  /  TRACKING" or "●  LOCK DISABLED  /  READY"
+    Status.TextColor3 = Settings.LockOn and accent() or MUTED
+
+    if not Settings.LockOn then
+        clearTarget()
+        return
+    end
+
+    acquireClock += dt
+    sightClock += dt
+    if acquireClock >= 0.35 then
+        acquireClock = 0
+        cachedTargets = collectTargets()
+    end
+
+    if currentTarget and not isAllowedTarget(currentTarget) then
+        clearTarget("TARGET  /  TARGET LOST")
+    end
+
+    if currentTarget and Settings.LineOfSight and sightClock >= 0.15 then
+        sightClock = 0
+        local part = getAimPart(currentTarget)
+        if not part or not visibleToCamera(currentTarget, part) then
+            clearTarget("TARGET  /  LINE OF SIGHT LOST")
+        end
+    end
+
+    if not currentTarget then
+        currentTarget = findBestTarget(center)
+    end
+
+    if currentTarget then
+        local part = getAimPart(currentTarget)
+        if part then
+            local targetPlayer = Players:GetPlayerFromCharacter(currentTarget)
+            local label = targetPlayer and targetPlayer.DisplayName or currentTarget.Name
+            local point = Camera:WorldToViewportPoint(part.Position)
+            local distance = (Vector2.new(point.X, point.Y) - center).Magnitude
+            Readout.Text = string.format("LOCKED  /  %s  /  %.0f PX", label, distance)
+
+            if Settings.ShowMarker then
+                Marker.Adornee = part
+                Marker.Enabled = true
+                local markerText = Marker:FindFirstChildOfClass("TextLabel")
+                if markerText then markerText.TextColor3 = accent() end
+            end
+            -- Aim-assist only: smoothly adjust camera rotation while preserving
+            -- the Roblox camera position and current CameraType.
+            -- The character's root part and Humanoid.AutoRotate are never changed.
+            local camPos = Camera.CFrame.Position
+            local desiredCFrame = CFrame.lookAt(camPos, part.Position, Vector3.yAxis)
+            local response = Settings.Strength -- higher = stronger/faster camera correction
+            local alpha = 1 - math.exp(-response * math.max(dt, 0))
+            Camera.CFrame = Camera.CFrame:Lerp(desiredCFrame, alpha)
+        else
+            clearTarget("TARGET  /  TARGET LOST")
+        end
+    else
+        Readout.Text = "TARGET  /  SEARCHING"
+    end
+end)
+
+GUI.Destroying:Connect(function()
+    RunService:UnbindFromRenderStep("JJSLockOnCamera")
+end)
+
+print("JJS Lock-On Suite loaded smoothly without changing camera states.")
